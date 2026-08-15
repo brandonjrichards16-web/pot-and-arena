@@ -23,8 +23,13 @@ services:
       # Render injects PORT; app reads process.env.PORT. HOST must be 0.0.0.0.
       - key: HOST
         value: "0.0.0.0"
-      # Free plan has no persistent disk — use /tmp (same idea as Fly free playtest).
+      # Free plan has no persistent disk — use /tmp, but restore/backup via GitHub.
       - key: DB_PATH
         value: /tmp/game.db
       - key: ALLOW_DEV_IAP
         value: "0"
+      - key: DB_BACKUP_GITHUB_REPO
+        value: brandonjrichards16-web/pot-and-arena-saves
+      # Set in Render dashboard / API (secret) — keeps progress across free cold starts.
+      - key: DB_BACKUP_GITHUB_TOKEN
+        sync: false

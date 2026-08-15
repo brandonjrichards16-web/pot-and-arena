@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { nanoid } from 'nanoid';
-import { prepare, migrate, getFlagBool } from './db.js';
+import { prepare, migrate, getFlagBool, initDatabase, enableDbPersistence } from './db.js';
 import { applyLedger, getBalances, ensureBalances } from './ledger.js';
 import {
   ROOM_TEMPLATES,
@@ -140,6 +140,8 @@ import {
   campaignAbandon,
 } from './campaign.js';
 
+// Free hosts (Render) wipe local disk on sleep — restore SQLite from GitHub first.
+await initDatabase();
 migrate();
 ensureCampaignTables();
 ensureStoreColumns();
@@ -147,6 +149,7 @@ ensureHeroesColumns();
 ensureClanTables();
 cancelExpiredRooms();
 tickClanDefenses();
+enableDbPersistence();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');

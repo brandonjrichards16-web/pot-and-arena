@@ -2,26 +2,59 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import {
+  restoreDatabaseFile,
+  startDbPersistence,
+  markDbDirty,
+  isDbBackupEnabled,
+} from './db-persist.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-const dbPath = process.env.DB_PATH || path.join(dataDir, 'game.db');
-// Fresh DB if schema evolving during early dev
-if (process.env.RESET_DB === '1' && fs.existsSync(dbPath)) {
-  fs.unlinkSync(dbPath);
+export const dbPath = process.env.DB_PATH || path.join(dataDir, 'game.db');
+
+/** Opened after optional remote restore (see initDatabase). */
+export let db = null;
+let ready = false;
+let readyPromise = null;
+
+/**
+ * Restore from free-tier backup (if configured), open SQLite, enable WAL.
+ * Safe to call multiple times; concurrent callers share one promise.
+ */
+export function initDatabase() {
+  if (ready && db) return Promise.resolve(db);
+  if (readyPromise) return readyPromise;
+  readyPromise = (async () => {
+    // Fresh DB if schema evolving during early dev
+    if (process.env.RESET_DB === '1' && fs.existsSync(dbPath)) {
+      fs.unlinkSync(dbPath);
+    }
+    await restoreDatabaseFile(dbPath);
+    db = new DatabaseSync(dbPath);
+    db.exec('PRAGMA journal_mode = WAL');
+    db.exec('PRAGMA foreign_keys = ON');
+    ready = true;
+    return db;
+  })();
+  return readyPromise;
 }
 
-export const db = new DatabaseSync(dbPath);
-db.exec('PRAGMA journal_mode = WAL');
-db.exec('PRAGMA foreign_keys = ON');
+function ensureOpen() {
+  if (!db) {
+    throw new Error('Database not open yet — await initDatabase() before use');
+  }
+  return db;
+}
 
 export function prepare(sql) {
-  const stmt = db.prepare(sql);
+  const stmt = ensureOpen().prepare(sql);
   return {
     run(...params) {
       const r = stmt.run(...params);
+      if (r.changes > 0) markDbDirty();
       return { changes: r.changes, lastInsertRowid: r.lastInsertRowid };
     },
     get(...params) {
@@ -35,20 +68,27 @@ export function prepare(sql) {
 
 export function transaction(fn) {
   return (...args) => {
-    db.exec('BEGIN');
+    ensureOpen().exec('BEGIN');
     try {
       const result = fn(...args);
-      db.exec('COMMIT');
+      ensureOpen().exec('COMMIT');
+      markDbDirty();
       return result;
     } catch (e) {
       try {
-        db.exec('ROLLBACK');
+        ensureOpen().exec('ROLLBACK');
       } catch {
         /* ignore */
       }
       throw e;
     }
   };
+}
+
+/** Call once after migrate() so free hosts keep progress across cold starts. */
+export function enableDbPersistence() {
+  if (!db) return;
+  if (isDbBackupEnabled()) startDbPersistence(db, dbPath);
 }
 
 export function migrate() {

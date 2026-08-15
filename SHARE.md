@@ -17,7 +17,7 @@ That link is the full game — **nothing runs on your Mac**.
 ## Notes
 
 - Mock store purchases work (no real money).
-- Progress is on the server; free Render has **ephemeral disk** — SQLite can reset on sleep/redeploy. Fine for playtests.
+- Progress is saved on the server and **backed up** to a private GitHub repo so free-tier restarts don’t wipe everything. First open after idle can still be slow (cold start).
 - Dev cheats (`/me/gems/grant`, unlock-all) are **off** in production (`ALLOW_DEV_IAP=0`).
 
 ## Deploy / redeploy
