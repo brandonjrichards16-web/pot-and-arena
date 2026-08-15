@@ -1,33 +1,28 @@
-# Share Pot & Arena (free, no tunnel)
+# Share with internet friends (soft launch)
 
-**Host:** [Render](https://render.com) free web service (Docker one-box: API + web).
+**Play link (send this):**  
+https://pot-and-arena.onrender.com
 
-**Play URL:** https://pot-and-arena.onrender.com
+Your computer does **not** need to be on. They play in a browser on their phone or PC.
 
-That link is the full game — **nothing runs on your Mac**.
+## Copy-paste message for chat
 
-## For playtesters
+```
+Hey — I'm soft-launching a free game I'm making. No install.
 
-1. Open the Render URL above.
-2. First load after idle may take **30–60 seconds** (free instances sleep).
-3. Guest login is automatic / create character and play.
-4. **Boards → Players** — see who is on this server (real humans).
-5. **Betting Pit** — host or join a **humans-only** coin/gem table. Share the room link.
+Open: https://pot-and-arena.onrender.com
 
-## Notes
+1) Tap START
+2) Make a fighter
+3) Tap JOIN A PIT
+4) Watch the fight
 
-- Mock store purchases work (no real money).
-- Progress is saved on the server and **backed up** to a private GitHub repo so free-tier restarts don’t wipe everything. First open after idle can still be slow (cold start).
-- Dev cheats (`/me/gems/grant`, unlock-all) are **off** in production (`ALLOW_DEV_IAP=0`).
-
-## Deploy / redeploy
-
-```bash
-cd Projects/pot-and-arena
-./scripts/deploy-render.sh   # rebuilds web into server/public + prints steps
-# commit + push to GitHub, then Render auto-deploys (see render.yaml)
+First load can take ~30–60 seconds if the free server was sleeping.
+If something's fun or sucks, use Feedback on the lobby (or just text me).
 ```
 
-One-time: GitHub repo + Render **New → Blueprint** on this repo (uses `render.yaml`).
+## Heads-up for you
 
-Legacy Fly script (if you still have quota): `./scripts/deploy-fly.sh`
+- Free host: first open after idle can be **slow** once — then normal.
+- Not trusted friends? Fine — don't put real money or personal info in the game (there isn't real money).
+- Progress is backed up on the server (soft launch, not permanent forever).
