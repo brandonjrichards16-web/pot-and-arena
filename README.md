@@ -2,16 +2,21 @@
 
 Async multiplayer: **luck pots** + **fighter arena**, dual currency (coins/gems), leaderboards, House bots for cold start, invite codes. Real-money withdrawals are ledger-ready but **locked**.
 
-## Free host (friends soft launch)
+## Soft launch (local first)
 
-**Render free** — no tunnel, no laptop required.
+Friends playtest loop — see **`SOFT_LAUNCH.md`**.
 
 ```bash
-./scripts/deploy-render.sh   # rebuilds web → server/public
-# push repo to GitHub, then Render → New → Blueprint (uses render.yaml)
+./scripts/soft-launch-local.sh
+# You:     http://127.0.0.1:8081
+# Friends: http://YOUR_LAN_IP:8081  (same Wi‑Fi)
 ```
 
-See `SHARE.md` and `render.yaml`. Free instances sleep after idle; SQLite is ephemeral.
+Happy path: **START → fighter → JOIN A PIT**. Feedback button + invite code on lobby.
+
+### Free host (remote)
+
+**Render free** — see `SHARE.md` / `render.yaml` when you leave the local-only phase.
 
 ### Quick start (local)
 

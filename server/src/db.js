@@ -286,9 +286,35 @@ export function migrate() {
     // launch: high bot share. Scale down later via config.
     ['house_max_bot_share', '0.8'],
     ['house_grace_seconds', '12'],
+    // Soft launch defaults on unless SOFT_LAUNCH=0
+    ['soft_launch', process.env.SOFT_LAUNCH === '0' ? 'false' : 'true'],
   ]) {
     insertFlag.run(k, v);
   }
+
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS playtest_feedback (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        display_name TEXT,
+        stars INTEGER,
+        message TEXT NOT NULL,
+        path TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_feedback_created ON playtest_feedback(created_at);
+    `);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Soft launch is ON by default (local + friends playtest). Set SOFT_LAUNCH=0 to disable. */
+export function isSoftLaunch() {
+  if (process.env.SOFT_LAUNCH === '0') return false;
+  if (process.env.SOFT_LAUNCH === '1') return true;
+  return getFlagBool('soft_launch', true);
 }
 
 export function getFlag(key, fallback = null) {

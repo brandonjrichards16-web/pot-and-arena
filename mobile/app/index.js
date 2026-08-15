@@ -11,6 +11,8 @@ import {
   RefreshControl,
   TextInput,
   Modal,
+  Share,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api, getToken, setToken } from '../lib/api';
@@ -34,6 +36,12 @@ export default function Home() {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
+  const [softLaunch, setSoftLaunch] = useState(true);
+  const [softBrief, setSoftBrief] = useState(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackStars, setFeedbackStars] = useState(0);
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
 
   async function saveName() {
     const displayName = renameDraft.trim().slice(0, 24);
@@ -99,6 +107,13 @@ export default function Home() {
 
   useEffect(() => {
     load();
+    api
+      .meta()
+      .then((m) => {
+        setSoftLaunch(m?.softLaunch !== false);
+        setSoftBrief(m?.softLaunchBrief || null);
+      })
+      .catch(() => {});
     // Light poll only while logged in — don't thrash the splash
     const t = setInterval(() => {
       getToken().then((tok) => {
@@ -107,6 +122,55 @@ export default function Home() {
     }, 12000);
     return () => clearInterval(t);
   }, [load]);
+
+  async function sendFeedback() {
+    const message = feedbackText.trim();
+    if (message.length < 2) {
+      Alert.alert('Feedback', 'Write a quick note (2+ characters).');
+      return;
+    }
+    setFeedbackBusy(true);
+    try {
+      await api.playtestFeedback({
+        message,
+        stars: feedbackStars || undefined,
+        path: 'lobby',
+      });
+      setFeedbackOpen(false);
+      setFeedbackText('');
+      setFeedbackStars(0);
+      Alert.alert('Thanks!', 'Logged for the soft launch. Keep playing.');
+    } catch (e) {
+      Alert.alert('Could not send', e.message);
+    } finally {
+      setFeedbackBusy(false);
+    }
+  }
+
+  async function shareInvite() {
+    const code = me?.user?.inviteCode;
+    if (!code) {
+      router.push('/invite');
+      return;
+    }
+    const blurb = `Play Pot & Arena with me — soft launch playtest. My invite code: ${code}`;
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: 'Pot & Arena', text: blurb });
+      } else if (
+        Platform.OS === 'web' &&
+        typeof navigator !== 'undefined' &&
+        navigator.clipboard?.writeText
+      ) {
+        await navigator.clipboard.writeText(blurb);
+        Alert.alert('Copied', blurb);
+      } else {
+        await Share.share({ message: blurb });
+      }
+    } catch {
+      router.push('/invite');
+    }
+  }
 
   async function begin() {
     setLoading(true);
@@ -319,12 +383,43 @@ export default function Home() {
           </View>
         </Modal>
 
+        {softLaunch ? (
+          <View style={styles.softBanner}>
+            <Text style={styles.softBannerTitle}>Friends soft launch</Text>
+            <Text style={styles.softBannerBody}>
+              {softBrief?.focus ||
+                'START → fighter → Join a pit → watch. Everything else is optional.'}
+            </Text>
+            <View style={styles.softRow}>
+              <Pressable style={styles.softChip} onPress={shareInvite}>
+                <Text style={styles.softChipTextDark}>
+                  Invite {user.inviteCode ? `· ${user.inviteCode}` : ''}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.softChip, styles.softChipAlt]}
+                onPress={() => setFeedbackOpen(true)}
+              >
+                <Text style={styles.softChipTextLight}>Feedback</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.ctaCol}>
-          {/* Campaign — full width hot CTA */}
+          {/* Soft launch: PLAY first. Campaign is secondary. */}
+          <JuicyButton
+            label="▶  JOIN A PIT"
+            onPress={joinPit}
+            color="hot"
+            size="md"
+            style={styles.ctaBtn}
+          />
+
           <JuicyButton
             label="CAMPAIGN"
             onPress={() => router.push('/campaign')}
-            color="hot"
+            color={softLaunch ? 'gold' : 'hot'}
             size="md"
             style={styles.ctaBtn}
           />
@@ -347,13 +442,8 @@ export default function Home() {
             </Pressable>
           </View>
 
-          {/* Pits: Join | Start | Betting — one bar, three hit targets */}
+          {/* Pits: Start | Betting — Join is already the main CTA */}
           <View style={styles.pitBar}>
-            <Pressable style={styles.pitSeg} onPress={joinPit}>
-              <Text style={styles.pitSegTitle}>Join a pit</Text>
-              <Text style={styles.pitSegSub}>Find a fight</Text>
-            </Pressable>
-            <View style={styles.pitDivider} />
             <Pressable
               style={styles.pitSeg}
               onPress={() => router.push('/create-pit')}
@@ -369,6 +459,15 @@ export default function Home() {
               <Text style={styles.pitSegTitle}>Betting</Text>
               <Text style={styles.pitSegSub}>Humans only</Text>
             </Pressable>
+            {!softLaunch ? (
+              <>
+                <View style={styles.pitDivider} />
+                <Pressable style={styles.pitSeg} onPress={joinPit}>
+                  <Text style={styles.pitSegTitle}>Join a pit</Text>
+                  <Text style={styles.pitSegSub}>Find a fight</Text>
+                </Pressable>
+              </>
+            ) : null}
           </View>
 
           <Pressable
@@ -380,6 +479,53 @@ export default function Home() {
           </Pressable>
         </View>
       </ScrollView>
+
+      <Modal visible={feedbackOpen} transparent animationType="fade">
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Soft launch feedback</Text>
+            <Text style={styles.modalSub}>
+              What was fun? What sucked? One line is enough.
+            </Text>
+            <View style={styles.starRow}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Pressable key={n} onPress={() => setFeedbackStars(n)} hitSlop={6}>
+                  <Text style={styles.star}>
+                    {feedbackStars >= n ? '★' : '☆'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              maxLength={2000}
+              multiline
+              placeholder="e.g. First fight was cool but I got lost in Upgrade"
+              placeholderTextColor={colors.muted}
+              style={[styles.modalInput, styles.feedbackInput]}
+            />
+            <View style={styles.modalRow}>
+              <Pressable
+                style={styles.modalCancel}
+                onPress={() => setFeedbackOpen(false)}
+                disabled={feedbackBusy}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalSave}
+                onPress={sendFeedback}
+                disabled={feedbackBusy}
+              >
+                <Text style={styles.modalSaveText}>
+                  {feedbackBusy ? '…' : 'Send'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </FunShell>
   );
 }
@@ -601,6 +747,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  feedbackInput: { minHeight: 88, textAlignVertical: 'top' },
+  starRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  star: { color: colors.gold, fontSize: 28, fontWeight: '900' },
+  softBanner: {
+    backgroundColor: 'rgba(40, 18, 8, 0.92)',
+    borderWidth: 2,
+    borderColor: colors.gold,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+  },
+  softBannerTitle: {
+    color: colors.gold,
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  softBannerBody: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  softRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  softChip: {
+    flex: 1,
+    backgroundColor: colors.gold,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  softChipAlt: { backgroundColor: '#3d2a12', borderWidth: 1, borderColor: colors.gold },
+  softChipTextDark: { color: '#1a0a04', fontWeight: '900', fontSize: 12 },
+  softChipTextLight: { color: '#fff8e8', fontWeight: '900', fontSize: 12 },
   modalRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
   modalCancel: {
     flex: 1,

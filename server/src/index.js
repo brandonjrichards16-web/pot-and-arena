@@ -4,7 +4,14 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { nanoid } from 'nanoid';
-import { prepare, migrate, getFlagBool, initDatabase, enableDbPersistence } from './db.js';
+import {
+  prepare,
+  migrate,
+  getFlagBool,
+  initDatabase,
+  enableDbPersistence,
+  isSoftLaunch,
+} from './db.js';
 import { applyLedger, getBalances, ensureBalances } from './ledger.js';
 import {
   ROOM_TEMPLATES,
@@ -336,12 +343,52 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/meta', (_req, res) => {
+  const soft = isSoftLaunch();
   res.json({
     disclaimer: HOUSE_DISCLAIMER,
     houseBotsEnabled: getFlagBool('house_bots_enabled', true),
     withdrawalsEnabled: getFlagBool('withdrawals_enabled', false),
     guildsEnabled: getFlagBool('guilds_enabled', false),
+    softLaunch: soft,
+    softLaunchBrief: soft
+      ? {
+          tagline: 'Friends soft launch — playtest, not App Store.',
+          focus: 'START → pick fighter → Join a pit → watch the fight.',
+          optional: 'Campaign, Upgrade, Clans, Betting are side doors.',
+          feedback: 'Tap Feedback on the lobby when something sucks or slaps.',
+        }
+      : null,
   });
+});
+
+/** Playtester feedback (soft launch). Stored in SQLite for you to review. */
+app.post('/playtest/feedback', auth, (req, res) => {
+  const message = String(req.body?.message || '').trim().slice(0, 2000);
+  if (message.length < 2) {
+    return res.status(400).json({ error: 'Say something (2+ chars)' });
+  }
+  let stars = Number(req.body?.stars);
+  if (!Number.isFinite(stars)) stars = null;
+  else stars = Math.max(1, Math.min(5, Math.round(stars)));
+  const pathHint = String(req.body?.path || '').trim().slice(0, 120) || null;
+  const id = nanoid(12);
+  prepare(
+    `INSERT INTO playtest_feedback (id, user_id, display_name, stars, message, path)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, req.user.id, req.user.display_name, stars, message, pathHint);
+  res.status(201).json({ ok: true, id });
+});
+
+/** Owner: list recent playtest notes (local soft launch). */
+app.get('/playtest/feedback', auth, (req, res) => {
+  if (!isSoftLaunch() && process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  const rows = prepare(
+    `SELECT id, user_id, display_name, stars, message, path, created_at
+     FROM playtest_feedback ORDER BY created_at DESC LIMIT 100`
+  ).all();
+  res.json({ feedback: rows });
 });
 
 app.get('/flags', (_req, res) => {

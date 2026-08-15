@@ -90,6 +90,9 @@ async function request(path, { method = 'GET', body, auth = true, timeoutMs = 20
 
 export const api = {
   meta: () => request('/meta', { auth: false }),
+  /** Soft-launch playtester note (1–5 stars optional + message) */
+  playtestFeedback: (body) =>
+    request('/playtest/feedback', { method: 'POST', body: body || {} }),
   guest: (displayName, inviteCode) =>
     request('/auth/guest', {
       method: 'POST',
