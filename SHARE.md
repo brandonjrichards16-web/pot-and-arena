@@ -2,7 +2,7 @@
 
 **Host:** [Render](https://render.com) free web service (Docker one-box: API + web).
 
-**Play URL:** *(set after first deploy — e.g. `https://pot-and-arena.onrender.com`)*
+**Play URL:** https://pot-and-arena.onrender.com
 
 That link is the full game — **nothing runs on your Mac**.
 
