@@ -1,0 +1,23 @@
+/** Juicy mobile-game palette (Coin Master / casual RPG energy) */
+export const colors = {
+  bg: '#1a0f2e',
+  bg2: '#2d1b4e',
+  skyTop: '#4c1d95',
+  skyBot: '#fb923c',
+  card: 'rgba(30, 16, 55, 0.82)',
+  cardSolid: '#24143f',
+  cardBorder: '#fbbf24',
+  text: '#fffdf7',
+  muted: '#e9d5ff',
+  gold: '#fbbf24',
+  goldDeep: '#d97706',
+  gem: '#22d3ee',
+  danger: '#fb7185',
+  accent: '#a78bfa',
+  accentHot: '#f43f5e',
+  house: '#c4b5fd',
+  win: '#4ade80',
+  pot: '#fde047',
+  wood: '#78350f',
+  cream: '#fff7ed',
+};

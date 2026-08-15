@@ -1,0 +1,17 @@
+node_modules/
+**/node_modules/
+.expo/
+**/.expo/
+dist/
+mobile/dist/
+data/*.db
+data/*.db-*
+server/data/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+*.bak
+.fly/
+.grok/

@@ -1,0 +1,11 @@
+**/node_modules
+**/.git
+**/data/*.db
+**/data/*.db-*
+mobile/node_modules
+mobile/dist
+server/data
+**/.expo
+**/__pycache__
+*.md
+!README.md

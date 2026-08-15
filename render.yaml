@@ -1,0 +1,30 @@
+# Pot & Arena — Render free tier (API + web, same origin).
+# Deploy: push this repo to GitHub → Render Dashboard → New → Blueprint → select repo.
+# Or: Dashboard → New → Web Service → connect repo (uses this file if Blueprint).
+#
+# Free tier notes:
+# - Sleeps after ~15 min idle; first open can take ~30–60s.
+# - Filesystem is ephemeral — SQLite at /tmp resets on spin-down/redeploy.
+# - Share the *.onrender.com URL only with friends (invite soft launch).
+
+services:
+  - type: web
+    name: pot-and-arena
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render injects PORT; app reads process.env.PORT. HOST must be 0.0.0.0.
+      - key: HOST
+        value: "0.0.0.0"
+      # Free plan has no persistent disk — use /tmp (same idea as Fly free playtest).
+      - key: DB_PATH
+        value: /tmp/game.db
+      - key: ALLOW_DEV_IAP
+        value: "0"

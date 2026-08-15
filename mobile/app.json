@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Pot & Arena",
+    "slug": "pot-and-arena",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "potandarena",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.potandarena.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0F1A"
+      },
+      "package": "com.potandarena.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}

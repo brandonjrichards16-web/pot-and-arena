@@ -1,0 +1,43 @@
+{
+  "at": "2026-08-10T23:16:17.680Z",
+  "runs": 50,
+  "avgFun": 10,
+  "avgEase": 8,
+  "avgAll": 9.300000000000008,
+  "suckRate": 0,
+  "verdict": "NOT SUCK — keep polishing the spectacle",
+  "topReasons": [
+    [
+      "watch time in sweet spot",
+      50
+    ],
+    [
+      "small cast readable",
+      50
+    ],
+    [
+      "you landed hits",
+      50
+    ],
+    [
+      "you dealt N dmg",
+      50
+    ],
+    [
+      "featured hero moment",
+      50
+    ],
+    [
+      "you won pot",
+      50
+    ],
+    [
+      "you died (ok if you hit first)",
+      34
+    ],
+    [
+      "you won the pit",
+      16
+    ]
+  ]
+}

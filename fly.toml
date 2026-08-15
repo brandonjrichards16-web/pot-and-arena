@@ -1,0 +1,38 @@
+# Pot & Arena — free-tier friendly one-box host (API + web).
+# Deploy: fly launch (first time) or fly deploy
+# Free playtest: machines auto-stop when idle; first hit may cold-start ~10–30s.
+
+app = 'pot-and-arena'
+primary_region = 'sjc'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  NODE_ENV = 'production'
+  PORT = '8080'
+  HOST = '0.0.0.0'
+  # Ephemeral SQLite is fine for free playtest (resets on cold start).
+  # Add a Fly volume later for persistence.
+  DB_PATH = '/tmp/game.db'
+  ALLOW_DEV_IAP = '0'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '20s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

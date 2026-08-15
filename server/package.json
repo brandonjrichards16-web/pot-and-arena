@@ -1,0 +1,17 @@
+{
+  "name": "pot-and-arena-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "PORT=3847 NODE_ENV=development node --watch src/index.js",
+    "start": "node src/index.js",
+    "start:local": "PORT=3847 node src/index.js",
+    "reset": "rm -f data/game.db data/game.db-wal data/game.db-shm && PORT=3847 node src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "nanoid": "^5.1.0"
+  }
+}
