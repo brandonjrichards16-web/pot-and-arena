@@ -45,12 +45,19 @@ export default function CreatePitScreen() {
       setUnlocks(u);
       const maxN = u?.maxCreateN || me.user?.maxCreateN || 5;
       setStartN((n) => Math.min(n, maxN));
-      const freeAd = (roomList.rooms || []).filter(
-        (r) =>
-          (r.entry_type === 'FREE' || r.entry_type === 'AD') &&
-          ['OPEN', 'FILLING'].includes(r.status) &&
-          (r.tickets_sold || 0) < r.n
-      );
+      // Only pits that already have someone waiting (not empty seed rooms)
+      const freeAd = (roomList.rooms || [])
+        .filter(
+          (r) =>
+            (r.entry_type === 'FREE' || r.entry_type === 'AD') &&
+            ['OPEN', 'FILLING'].includes(r.status) &&
+            (r.tickets_sold || 0) > 0 &&
+            (r.tickets_sold || 0) < r.n
+        )
+        .sort((a, b) => {
+          if ((a.n || 99) !== (b.n || 99)) return (a.n || 99) - (b.n || 99);
+          return (b.tickets_sold || 0) - (a.tickets_sold || 0);
+        });
       setOpenPits(freeAd);
     } catch (e) {
       Alert.alert('Host', e.message);
@@ -126,41 +133,44 @@ export default function CreatePitScreen() {
           Host a free/ad pit · House may fill empty seats · max N={maxCreateN}
         </Text>
 
-        <Text style={styles.hostLabel}>Open pits right now</Text>
-        {openPits.length === 0 ? (
-          <Text style={styles.browseEmpty}>
-            None open — host one below, or tap JOIN A PIT on the lobby.
-          </Text>
-        ) : (
-          openPits.map((p) => {
-            const sold = p.tickets_sold || 0;
-            const left = p.seatsLeft ?? Math.max(0, p.n - sold);
-            return (
-              <Pressable
-                key={p.id}
-                style={styles.browseRow}
-                onPress={() =>
-                  router.push({
-                    pathname: '/play-session',
-                    params: { mode: 'join', roomId: p.id },
-                  })
-                }
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.browseTitle}>{p.title}</Text>
-                  <Text style={styles.browseMeta}>
-                    {sold}/{p.n} seated · {left} open
-                    {p.entry_type === 'FREE' ? ' · free' : ' · ad'}
-                    {sold > 0 ? ' · has players' : ''}
-                  </Text>
-                </View>
-                <Text style={styles.browseJoin}>JOIN</Text>
-              </Pressable>
-            );
-          })
-        )}
+        {openPits.length > 0 ? (
+          <>
+            <Text style={styles.hostLabel}>Pits waiting (have players)</Text>
+            <Text style={styles.browseEmpty}>
+              Smallest first — or host your own below.
+            </Text>
+            {openPits.map((p) => {
+              const sold = p.tickets_sold || 0;
+              const left = p.seatsLeft ?? Math.max(0, p.n - sold);
+              return (
+                <Pressable
+                  key={p.id}
+                  style={styles.browseRow}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/play-session',
+                      params: { mode: 'join', roomId: p.id },
+                    })
+                  }
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.browseTitle}>
+                      {p.title} · N={p.n}
+                    </Text>
+                    <Text style={styles.browseMeta}>
+                      {sold}/{p.n} seated · {left} open
+                    </Text>
+                  </View>
+                  <Text style={styles.browseJoin}>JOIN</Text>
+                </Pressable>
+              );
+            })}
+          </>
+        ) : null}
 
-        <Text style={[styles.hostLabel, { marginTop: 18 }]}>Or host a new one</Text>
+        <Text style={[styles.hostLabel, openPits.length ? { marginTop: 18 } : null]}>
+          Host a pit
+        </Text>
         <Text style={styles.hostLabel}>Seats (N)</Text>
         <View style={styles.nRow}>
           {N_OPTIONS.map((n) => {

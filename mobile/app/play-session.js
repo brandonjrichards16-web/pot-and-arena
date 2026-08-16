@@ -79,35 +79,37 @@ export default function PlaySession() {
             adsPerTicket: paramAds,
           });
         } else {
-          // Browse free/ad pits — show list when several exist (don't hide them)
+          // JOIN: auto into smallest pit that already has someone waiting.
+          // Empty seed pits don't count — go create instead.
           const { rooms } = await api.rooms();
-          const open = (rooms || [])
-            .filter(
-              (x) =>
-                (x.entry_type === 'FREE' || x.entry_type === 'AD') &&
-                (x.tickets_sold || 0) < x.n &&
-                ['OPEN', 'FILLING'].includes(x.status)
-            )
-            .sort((a, b) => {
-              const ta = a.tickets_sold || 0;
-              const tb = b.tickets_sold || 0;
-              if (tb !== ta) return tb - ta;
-              return String(b.created_at || '').localeCompare(String(a.created_at || ''));
-            });
-          if (open.length > 1) {
+          const open = (rooms || []).filter(
+            (x) =>
+              (x.entry_type === 'FREE' || x.entry_type === 'AD') &&
+              (x.tickets_sold || 0) < x.n &&
+              ['OPEN', 'FILLING'].includes(x.status)
+          );
+          const withPeople = open.filter((x) => (x.tickets_sold || 0) > 0);
+          if (!withPeople.length) {
             if (cancelled) return;
-            setPitChoices(open);
-            setPhase('pick');
-            setStatusLine('Pick an open pit — or start a new one.');
+            Alert.alert(
+              'No pits waiting',
+              'Nobody’s in a free/ad pit right now. Host a small one and friends can jump in.',
+              [
+                {
+                  text: 'Create a pit',
+                  onPress: () => router.replace('/create-pit'),
+                },
+                { text: 'Lobby', style: 'cancel', onPress: () => router.replace('/') },
+              ]
+            );
             return;
           }
-          r =
-            open[0] ||
-            (await api.createCustomRoom({
-              mode: 'random',
-              n: 4,
-              adsPerTicket: 1,
-            }));
+          // Smallest N first; if tied, fullest (most seated) so you fill faster
+          withPeople.sort((a, b) => {
+            if ((a.n || 99) !== (b.n || 99)) return (a.n || 99) - (b.n || 99);
+            return (b.tickets_sold || 0) - (a.tickets_sold || 0);
+          });
+          r = withPeople[0];
         }
 
         if (cancelled) return;
@@ -147,23 +149,19 @@ export default function PlaySession() {
       await enterRoom(r);
     } catch (e) {
       Alert.alert('Pit', e.message);
-      // refresh choices
       try {
         const { rooms } = await api.rooms();
-        const open = (rooms || []).filter(
+        const withPeople = (rooms || []).filter(
           (x) =>
             (x.entry_type === 'FREE' || x.entry_type === 'AD') &&
+            (x.tickets_sold || 0) > 0 &&
             (x.tickets_sold || 0) < x.n &&
             ['OPEN', 'FILLING'].includes(x.status)
         );
-        setPitChoices(open);
-        if (!open.length) {
-          const r = await api.createCustomRoom({
-            mode: 'random',
-            n: 4,
-            adsPerTicket: 1,
-          });
-          await enterRoom(r);
+        withPeople.sort((a, b) => (a.n || 99) - (b.n || 99));
+        setPitChoices(withPeople);
+        if (!withPeople.length) {
+          router.replace('/create-pit');
         }
       } catch {
         /* ignore */
@@ -174,19 +172,7 @@ export default function PlaySession() {
   }
 
   async function startNewFromPick() {
-    setBusy(true);
-    try {
-      const r = await api.createCustomRoom({
-        mode: 'random',
-        n: 4,
-        adsPerTicket: 1,
-      });
-      await enterRoom(r);
-    } catch (e) {
-      Alert.alert('Could not open pit', e.message);
-    } finally {
-      setBusy(false);
-    }
+    router.replace('/create-pit');
   }
 
   async function takeTicket({ useSkip, adsWatched } = {}) {
@@ -410,6 +396,7 @@ export default function PlaySession() {
     }
   }
 
+  // Rare: only pits that already have people (fallback if auto-join races)
   if (!room && phase === 'pick') {
     return (
       <FunShell dim>
@@ -418,14 +405,13 @@ export default function PlaySession() {
             <BackToLobby />
             <ResourcePills coins={balances.COIN} gems={balances.GEM} />
           </View>
-          <Text style={[styles.title, { textAlign: 'center' }]}>OPEN PITS</Text>
+          <Text style={[styles.title, { textAlign: 'center' }]}>WAITING PITS</Text>
           <Text style={styles.status}>
-            {statusLine || 'Pick a pit with open seats.'}
+            Pits that already have someone — smallest first.
           </Text>
           {pitChoices.map((p) => {
             const sold = p.tickets_sold || 0;
             const left = p.seatsLeft ?? Math.max(0, p.n - sold);
-            const ads = p.ads_per_ticket || p.adsPerTicket || 0;
             return (
               <Pressable
                 key={p.id}
@@ -434,12 +420,11 @@ export default function PlaySession() {
                 onPress={() => pickPit(p)}
               >
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.pickTitle}>{p.title || 'Pit'}</Text>
+                  <Text style={styles.pickTitle}>
+                    {p.title || 'Pit'} · N={p.n}
+                  </Text>
                   <Text style={styles.pickMeta}>
                     {sold}/{p.n} seated · {left} open
-                    {p.entry_type === 'FREE' ? ' · free' : ''}
-                    {ads > 0 ? ` · ${ads} ad(s)/ticket` : ''}
-                    {sold > 0 ? ' · has players' : ''}
                   </Text>
                 </View>
                 <View style={styles.pickPill}>
@@ -449,11 +434,10 @@ export default function PlaySession() {
             );
           })}
           <JuicyButton
-            label={busy ? '…' : 'START A NEW PIT'}
+            label="CREATE A PIT"
             onPress={startNewFromPick}
             color="gold"
             size="md"
-            disabled={busy}
             style={{ marginTop: 16 }}
           />
         </View>
