@@ -67,7 +67,17 @@ export default function ClansScreen() {
       setMine(me.clan || null);
       setChat(me.chat || []);
       setOpenSquads(me.openSquads || []);
-      setList((clans.clans || []).filter((c) => c.defenseActive));
+      // Show ALL clans so people can join (was wrongly only defenseActive)
+      const all = [...(clans.clans || [])];
+      all.sort((a, b) => {
+        // Prefer open-to-join, then bigger camps, then name
+        if (!!b.autoAccept !== !!a.autoAccept) return b.autoAccept ? 1 : -1;
+        if ((b.memberCount || 0) !== (a.memberCount || 0)) {
+          return (b.memberCount || 0) - (a.memberCount || 0);
+        }
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+      setList(all);
       if (profile?.balances) setBalances(profile.balances);
 
       const clanId = me.clan?.id || null;
@@ -499,7 +509,46 @@ export default function ClansScreen() {
                     />
                   </View>
                   <View style={styles.card}>
-                    <Text style={styles.cardTitle}>Join a clan</Text>
+                    <Text style={styles.cardTitle}>Browse camps</Text>
+                    <Text style={styles.hint}>
+                      Tap Join on a clan below. Or type a TAG if a friend gave you
+                      one.
+                    </Text>
+                    {list.length === 0 ? (
+                      <Text style={styles.hint}>
+                        No clans yet — create one above and friends can join
+                        yours.
+                      </Text>
+                    ) : (
+                      list.map((c) => (
+                        <View key={c.id} style={styles.clanRow}>
+                          <View style={styles.clanRowMain}>
+                            <Text style={styles.clanRowTitle} numberOfLines={1}>
+                              [{c.tag}] {c.name}
+                            </Text>
+                            <Text style={styles.clanRowMeta}>
+                              {c.memberCount || 0} members
+                              {c.minLevel > 1 ? ` · lvl ${c.minLevel}+` : ''}
+                              {c.autoAccept === false ? ' · needs approval' : ' · open'}
+                              {c.defenseActive ? ' · defending' : ''}
+                            </Text>
+                          </View>
+                          <Pressable
+                            style={[
+                              styles.clanJoinBtn,
+                              busy && styles.clanJoinBtnOff,
+                            ]}
+                            disabled={busy}
+                            onPress={() => doJoin(c.tag)}
+                          >
+                            <Text style={styles.clanJoinBtnText}>Join</Text>
+                          </Pressable>
+                        </View>
+                      ))
+                    )}
+                    <Text style={[styles.cardTitle, { marginTop: 12 }]}>
+                      Join by TAG
+                    </Text>
                     <TextInput
                       style={styles.input}
                       placeholder="Clan TAG"
@@ -510,7 +559,7 @@ export default function ClansScreen() {
                       maxLength={5}
                     />
                     <JuicyButton
-                      label={busy ? '…' : 'JOIN'}
+                      label={busy ? '…' : 'JOIN TAG'}
                       onPress={() => doJoin()}
                       color="hot"
                       size="sm"
@@ -994,10 +1043,19 @@ export default function ClansScreen() {
                   ) : null}
 
                   <Text style={styles.cardTitle}>Defending</Text>
-                  {!list.length ? (
-                    <Text style={styles.hint}>Nobody defending right now.</Text>
-                  ) : (
-                    list.map((c) => (
+                  {(() => {
+                    const targets = list.filter(
+                      (c) => c.defenseActive && c.id !== clan?.id
+                    );
+                    if (!targets.length) {
+                      return (
+                        <Text style={styles.hint}>
+                          Nobody defending right now. Other camps still show under
+                          Browse when you leave a clan.
+                        </Text>
+                      );
+                    }
+                    return targets.map((c) => (
                       <View key={c.id} style={styles.raidCard}>
                         <Text style={styles.raidName}>
                           [{c.tag}] {c.name}
@@ -1013,8 +1071,8 @@ export default function ClansScreen() {
                           disabled={busy || isPrep}
                         />
                       </View>
-                    ))
-                  )}
+                    ));
+                  })()}
 
                   {lastResult ? (
                     <View style={styles.card}>
@@ -1328,6 +1386,38 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(251,191,36,0.4)',
     padding: 8,
     marginBottom: 7,
+  },
+  clanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+  },
+  clanRowMain: { flex: 1, minWidth: 0 },
+  clanRowTitle: {
+    color: colors.text,
+    fontWeight: '900',
+    fontSize: 15,
+  },
+  clanRowMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  clanJoinBtn: {
+    backgroundColor: colors.accentHot || colors.gold,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  clanJoinBtnOff: { opacity: 0.5 },
+  clanJoinBtnText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 13,
   },
   cardTitle: {
     color: colors.gold,
