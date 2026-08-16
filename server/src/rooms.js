@@ -200,22 +200,36 @@ export function getRoom(id) {
 }
 
 export function listOpenRooms() {
+  try {
+    cancelExpiredRooms();
+  } catch {
+    /* ignore */
+  }
   return prepare(
     `SELECT id, title, status, n, entry_type, stake, ads_per_ticket,
             tickets_sold, max_level, allows_house, pot_humans_only,
             expires_at, created_at
      FROM rooms
      WHERE status IN ('OPEN', 'FILLING')
-     ORDER BY created_at DESC
+       AND tickets_sold < n
+     ORDER BY
+       CASE WHEN tickets_sold > 0 THEN 0 ELSE 1 END,
+       CASE WHEN status = 'FILLING' THEN 0 ELSE 1 END,
+       tickets_sold DESC,
+       created_at DESC
      LIMIT 50`
   )
     .all()
-    .map((r) => ({
-      ...r,
-      allows_house: !!r.allows_house,
-      pot_humans_only: !!r.pot_humans_only,
-      disclaimer: r.allows_house ? HOUSE_DISCLAIMER : 'Humans only.',
-    }));
+    .map((r) => {
+      const seatsLeft = Math.max(0, r.n - (r.tickets_sold || 0));
+      return {
+        ...r,
+        allows_house: !!r.allows_house,
+        pot_humans_only: !!r.pot_humans_only,
+        seatsLeft,
+        disclaimer: r.allows_house ? HOUSE_DISCLAIMER : 'Humans only.',
+      };
+    });
 }
 
 export function myRooms(userId) {
@@ -243,6 +257,11 @@ export function myRooms(userId) {
 
 /** Open human-only stake rooms (Betting Pit lobby). */
 export function listBettingRooms() {
+  try {
+    cancelExpiredRooms();
+  } catch {
+    /* ignore */
+  }
   return prepare(
     `SELECT id, title, status, n, entry_type, stake, ads_per_ticket,
             tickets_sold, max_level, allows_house, pot_humans_only,
@@ -251,14 +270,17 @@ export function listBettingRooms() {
      WHERE status IN ('OPEN', 'FILLING')
        AND allows_house = 0
        AND entry_type IN ('COIN', 'GEM')
+       AND tickets_sold < n
      ORDER BY
        CASE WHEN tickets_sold > 0 THEN 0 ELSE 1 END,
+       CASE WHEN status = 'FILLING' THEN 0 ELSE 1 END,
+       tickets_sold DESC,
        created_at DESC
      LIMIT 60`
   )
     .all()
     .map((r) => {
-      const seatsLeft = Math.max(0, r.n - r.tickets_sold);
+      const seatsLeft = Math.max(0, r.n - (r.tickets_sold || 0));
       return {
         ...r,
         allows_house: false,

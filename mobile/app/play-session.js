@@ -35,6 +35,7 @@ export default function PlaySession() {
 
   const [phase, setPhase] = useState('boot');
   const [room, setRoom] = useState(null);
+  const [pitChoices, setPitChoices] = useState([]);
   const [balances, setBalances] = useState({ COIN: 0, GEM: 0 });
   const [skips, setSkips] = useState(0);
   const [myTickets, setMyTickets] = useState(0);
@@ -78,14 +79,30 @@ export default function PlaySession() {
             adsPerTicket: paramAds,
           });
         } else {
+          // Browse free/ad pits — show list when several exist (don't hide them)
           const { rooms } = await api.rooms();
-          r =
-            (rooms || []).find(
+          const open = (rooms || [])
+            .filter(
               (x) =>
                 (x.entry_type === 'FREE' || x.entry_type === 'AD') &&
-                x.tickets_sold < x.n &&
+                (x.tickets_sold || 0) < x.n &&
                 ['OPEN', 'FILLING'].includes(x.status)
-            ) ||
+            )
+            .sort((a, b) => {
+              const ta = a.tickets_sold || 0;
+              const tb = b.tickets_sold || 0;
+              if (tb !== ta) return tb - ta;
+              return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+            });
+          if (open.length > 1) {
+            if (cancelled) return;
+            setPitChoices(open);
+            setPhase('pick');
+            setStatusLine('Pick an open pit — or start a new one.');
+            return;
+          }
+          r =
+            open[0] ||
             (await api.createCustomRoom({
               mode: 'random',
               n: 4,
@@ -94,16 +111,7 @@ export default function PlaySession() {
         }
 
         if (cancelled) return;
-        setRoom(r);
-        const need =
-          Number(r.adsRequired ?? r.adsPerTicket ?? r.ads_per_ticket) || 1;
-        setStatusLine(
-          need > 1
-            ? `This pit needs ${need} ads per ticket · pot pays ×${need}`
-            : 'Every ticket costs one ad — that’s your chip on the table.'
-        );
-        setPhase('ad');
-        setShowAd(true);
+        await enterRoom(r);
       } catch (e) {
         Alert.alert('Could not start', e.message, [
           { text: 'Back', onPress: () => router.replace('/') },
@@ -114,6 +122,72 @@ export default function PlaySession() {
       cancelled = true;
     };
   }, [mode, paramRoomId, paramN, paramAds, router]);
+
+  async function enterRoom(r) {
+    setRoom(r);
+    setPitChoices([]);
+    const need =
+      Number(r.adsRequired ?? r.adsPerTicket ?? r.ads_per_ticket) || 1;
+    setStatusLine(
+      need > 1
+        ? `This pit needs ${need} ads per ticket · pot pays ×${need}`
+        : 'Every ticket costs one ad — that’s your chip on the table.'
+    );
+    setPhase('ad');
+    setShowAd(true);
+  }
+
+  async function pickPit(choice) {
+    setBusy(true);
+    try {
+      const r = await api.room(choice.id);
+      if (!['OPEN', 'FILLING'].includes(r.status) || r.tickets_sold >= r.n) {
+        throw new Error('That pit just filled — pick another.');
+      }
+      await enterRoom(r);
+    } catch (e) {
+      Alert.alert('Pit', e.message);
+      // refresh choices
+      try {
+        const { rooms } = await api.rooms();
+        const open = (rooms || []).filter(
+          (x) =>
+            (x.entry_type === 'FREE' || x.entry_type === 'AD') &&
+            (x.tickets_sold || 0) < x.n &&
+            ['OPEN', 'FILLING'].includes(x.status)
+        );
+        setPitChoices(open);
+        if (!open.length) {
+          const r = await api.createCustomRoom({
+            mode: 'random',
+            n: 4,
+            adsPerTicket: 1,
+          });
+          await enterRoom(r);
+        }
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startNewFromPick() {
+    setBusy(true);
+    try {
+      const r = await api.createCustomRoom({
+        mode: 'random',
+        n: 4,
+        adsPerTicket: 1,
+      });
+      await enterRoom(r);
+    } catch (e) {
+      Alert.alert('Could not open pit', e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function takeTicket({ useSkip, adsWatched } = {}) {
     setBusy(true);
@@ -336,6 +410,57 @@ export default function PlaySession() {
     }
   }
 
+  if (!room && phase === 'pick') {
+    return (
+      <FunShell dim>
+        <View style={styles.wrap}>
+          <View style={styles.top}>
+            <BackToLobby />
+            <ResourcePills coins={balances.COIN} gems={balances.GEM} />
+          </View>
+          <Text style={[styles.title, { textAlign: 'center' }]}>OPEN PITS</Text>
+          <Text style={styles.status}>
+            {statusLine || 'Pick a pit with open seats.'}
+          </Text>
+          {pitChoices.map((p) => {
+            const sold = p.tickets_sold || 0;
+            const left = p.seatsLeft ?? Math.max(0, p.n - sold);
+            const ads = p.ads_per_ticket || p.adsPerTicket || 0;
+            return (
+              <Pressable
+                key={p.id}
+                style={styles.pickRow}
+                disabled={busy}
+                onPress={() => pickPit(p)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pickTitle}>{p.title || 'Pit'}</Text>
+                  <Text style={styles.pickMeta}>
+                    {sold}/{p.n} seated · {left} open
+                    {p.entry_type === 'FREE' ? ' · free' : ''}
+                    {ads > 0 ? ` · ${ads} ad(s)/ticket` : ''}
+                    {sold > 0 ? ' · has players' : ''}
+                  </Text>
+                </View>
+                <View style={styles.pickPill}>
+                  <Text style={styles.pickPillText}>JOIN</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          <JuicyButton
+            label={busy ? '…' : 'START A NEW PIT'}
+            onPress={startNewFromPick}
+            color="gold"
+            size="md"
+            disabled={busy}
+            style={{ marginTop: 16 }}
+          />
+        </View>
+      </FunShell>
+    );
+  }
+
   if (!room && phase === 'boot') {
     return (
       <FunShell>
@@ -469,6 +594,26 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   centerPad: { alignItems: 'center', marginTop: 24 },
   wrap: { flex: 1, padding: 20, paddingTop: 52 },
+  pickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: 12,
+    marginTop: 10,
+  },
+  pickTitle: { color: colors.text, fontWeight: '900', fontSize: 15 },
+  pickMeta: { color: colors.muted, fontSize: 12, marginTop: 3, fontWeight: '600' },
+  pickPill: {
+    backgroundColor: colors.accentHot,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pickPillText: { color: '#fff', fontWeight: '900', fontSize: 12 },
   top: {
     flexDirection: 'row',
     justifyContent: 'space-between',

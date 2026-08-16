@@ -32,17 +32,26 @@ export default function CreatePitScreen() {
   const [startAds, setStartAds] = useState(1);
   const [detailN, setDetailN] = useState(null);
   const [unlockBusy, setUnlockBusy] = useState(false);
+  const [openPits, setOpenPits] = useState([]);
 
   const load = useCallback(async () => {
     try {
-      const [me, u] = await Promise.all([
+      const [me, u, roomList] = await Promise.all([
         api.me(),
         api.roomUnlocks().catch(() => null),
+        api.rooms().catch(() => ({ rooms: [] })),
       ]);
       setBalances(me.balances || { COIN: 0, GEM: 0 });
       setUnlocks(u);
       const maxN = u?.maxCreateN || me.user?.maxCreateN || 5;
       setStartN((n) => Math.min(n, maxN));
+      const freeAd = (roomList.rooms || []).filter(
+        (r) =>
+          (r.entry_type === 'FREE' || r.entry_type === 'AD') &&
+          ['OPEN', 'FILLING'].includes(r.status) &&
+          (r.tickets_sold || 0) < r.n
+      );
+      setOpenPits(freeAd);
     } catch (e) {
       Alert.alert('Host', e.message);
     } finally {
@@ -117,6 +126,41 @@ export default function CreatePitScreen() {
           Host a free/ad pit · House may fill empty seats · max N={maxCreateN}
         </Text>
 
+        <Text style={styles.hostLabel}>Open pits right now</Text>
+        {openPits.length === 0 ? (
+          <Text style={styles.browseEmpty}>
+            None open — host one below, or tap JOIN A PIT on the lobby.
+          </Text>
+        ) : (
+          openPits.map((p) => {
+            const sold = p.tickets_sold || 0;
+            const left = p.seatsLeft ?? Math.max(0, p.n - sold);
+            return (
+              <Pressable
+                key={p.id}
+                style={styles.browseRow}
+                onPress={() =>
+                  router.push({
+                    pathname: '/play-session',
+                    params: { mode: 'join', roomId: p.id },
+                  })
+                }
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.browseTitle}>{p.title}</Text>
+                  <Text style={styles.browseMeta}>
+                    {sold}/{p.n} seated · {left} open
+                    {p.entry_type === 'FREE' ? ' · free' : ' · ad'}
+                    {sold > 0 ? ' · has players' : ''}
+                  </Text>
+                </View>
+                <Text style={styles.browseJoin}>JOIN</Text>
+              </Pressable>
+            );
+          })
+        )}
+
+        <Text style={[styles.hostLabel, { marginTop: 18 }]}>Or host a new one</Text>
         <Text style={styles.hostLabel}>Seats (N)</Text>
         <View style={styles.nRow}>
           {N_OPTIONS.map((n) => {
@@ -241,6 +285,32 @@ export default function CreatePitScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  browseEmpty: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  browseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: 12,
+    marginBottom: 8,
+  },
+  browseTitle: { color: colors.text, fontWeight: '900', fontSize: 14 },
+  browseMeta: { color: colors.muted, fontSize: 12, marginTop: 2, fontWeight: '600' },
+  browseJoin: {
+    color: colors.gold,
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 0.5,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

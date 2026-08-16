@@ -46,7 +46,13 @@ export default function BettingPit() {
         api.matchAlerts().catch(() => ({ waiting: [], ready: [] })),
         api.me().catch(() => null),
       ]);
-      setRooms(list.rooms || []);
+      // Show every open seat table (API already sorts: people first)
+      const open = (list.rooms || []).filter(
+        (r) =>
+          ['OPEN', 'FILLING'].includes(r.status) &&
+          (r.seatsLeft == null ? (r.tickets_sold || 0) < r.n : r.seatsLeft > 0)
+      );
+      setRooms(open);
       setMine({ waiting: alerts.waiting || [], ready: alerts.ready || [] });
       setMe(profile);
     } catch (e) {
@@ -241,33 +247,37 @@ export default function BettingPit() {
           </View>
         ) : null}
 
-        <Text style={styles.section}>Open tables</Text>
+        <Text style={styles.section}>
+          Open tables{rooms.length ? ` · ${rooms.length}` : ''}
+        </Text>
         {loading && rooms.length === 0 ? (
           <ActivityIndicator color={colors.gold} style={{ marginTop: 20 }} />
         ) : rooms.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>No open bets yet</Text>
             <Text style={styles.emptyBody}>
-              Host a table above and share the link with a friend — or wait for someone else to open
-              one.
+              Host a table above and share the link with a friend — or pull down to
+              refresh when someone else opens one.
             </Text>
           </View>
         ) : (
           rooms.map((r) => {
-            const left = r.seatsLeft ?? r.n - r.tickets_sold;
+            const sold = r.tickets_sold || 0;
+            const left = r.seatsLeft ?? Math.max(0, r.n - sold);
             const full = left <= 0;
             return (
               <Pressable
                 key={r.id}
-                style={styles.room}
+                style={[styles.room, sold > 0 && styles.roomHot]}
                 onPress={() => joinRoom(r.id)}
                 disabled={busy || full}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.roomTitle}>{r.title}</Text>
                   <Text style={styles.roomMeta}>
-                    {r.tickets_sold}/{r.n} seated · {left} open ·{' '}
+                    {sold}/{r.n} seated · {left} open ·{' '}
                     {r.entry_type === 'GEM' ? '💎' : '🪙'} {r.stake} each
+                    {sold > 0 ? ' · waiting for players' : ' · empty table'}
                   </Text>
                   <Text style={styles.roomPot}>
                     Pot ~{r.potEstimate ?? Math.round(r.n * r.stake * 0.9)}
@@ -326,6 +336,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1528',
     borderRadius: 10,
     padding: 10,
+  },
+  roomHot: {
+    borderColor: colors.gold,
+    borderWidth: 2,
   },
   mineWaitText: { color: colors.text, fontWeight: '600', fontSize: 13 },
   createCard: {
